@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 /**
  * @extends ServiceEntityRepository<User>
@@ -16,9 +17,13 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class UserRepository extends ServiceEntityRepository
 {
-    public function __construct(ManagerRegistry $registry)
+    private ParameterBagInterface $params;
+
+    public function __construct(ManagerRegistry $registry, ParameterBagInterface $params)
     {
         parent::__construct($registry, User::class);
+
+        $this->params = $params;
     }
 
     public function add(User $entity, bool $flush = false): void
@@ -37,6 +42,17 @@ class UserRepository extends ServiceEntityRepository
         if ($flush) {
             $this->getEntityManager()->flush();
         }
+    }
+
+    public function findAllInPage(int $customerId, int $page = 1)
+    {
+        $qb = $this->createQueryBuilder('u')
+                ->where('u.customer = :id')
+                ->setParameter('id', $customerId)
+                ->setFirstResult(($page - 1) * $this->params->get('users_per_page'))
+                ->setMaxResults($this->params->get('users_per_page'));
+        
+        return $qb->getQuery()->getResult();
     }
 
 //    /**
