@@ -4,8 +4,20 @@ namespace App\Entity;
 
 use App\Repository\PhoneRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Hateoas\Configuration\Annotation as Hateoas;
+use JMS\Serializer\Annotation\Groups;
 
 /**
+ * @Hateoas\Relation(
+ *      "self",
+ *      href = @Hateoas\Route(
+ *          "app_phones_details",
+ *          parameters = { "id" = "expr(object.getId())" },
+ *          absolute = false
+ *      ),
+ *      exclusion = @Hateoas\Exclusion(groups="getPhones")
+ * )
+ * 
  * @ORM\Entity(repositoryClass=PhoneRepository::class)
  */
 class Phone
@@ -14,52 +26,62 @@ class Phone
      * @ORM\Id
      * @ORM\GeneratedValue
      * @ORM\Column(type="integer")
+     * @Groups({"getPhones", "getPhoneDetails"})
      */
     private $id;
 
     /**
      * @ORM\Column(type="string", length=255)
+     * @Groups({"getPhones", "getPhoneDetails"})
      */
     private $name;
 
     /**
      * @ORM\ManyToOne(targetEntity=Brand::class, inversedBy="phones")
      * @ORM\JoinColumn(nullable=false)
+     * @Groups({"getPhoneDetails"})
      */
     private $brand;
 
     /**
      * @ORM\Column(type="datetime")
+     * @Groups({"getPhoneDetails"})
      */
     private $createdAt;
 
     /**
      * @ORM\Column(type="datetime", nullable=true)
+     * @Groups({"getPhoneDetails"})
      */
     private $updatedAt;
 
     /**
      * @ORM\Column(type="string", length=50)
+     * @Groups({"getPhoneDetails"})
      */
     private $color;
 
     /**
      * @ORM\Column(type="boolean")
+     * @Groups({"getPhoneDetails"})
      */
     private $dual_sim;
 
     /**
      * @ORM\Column(type="float")
+     * @Groups({"getPhoneDetails"})
      */
     private $memory;
 
     /**
      * @ORM\Column(type="text")
+     * @Groups({"getPhoneDetails"})
      */
     private $description;
 
     /**
      * @ORM\Column(type="float")
+     * @Groups({"getPhoneDetails"})
      */
     private $selling_price;
 
@@ -92,12 +114,12 @@ class Phone
         return $this;
     }
 
-    public function getCreated(): ?\DateTimeInterface
+    public function getCreatedAt(): ?\DateTimeInterface
     {
         return $this->createdAt;
     }
 
-    public function setCreated(\DateTimeInterface $created): self
+    public function setCreatedAt(\DateTimeInterface $created): self
     {
         $this->createdAt = $created;
 

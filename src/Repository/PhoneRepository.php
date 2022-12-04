@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Phone;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 /**
  * @extends ServiceEntityRepository<Phone>
@@ -16,9 +17,13 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class PhoneRepository extends ServiceEntityRepository
 {
-    public function __construct(ManagerRegistry $registry)
+    private ParameterBagInterface $params;
+
+    public function __construct(ManagerRegistry $registry, ParameterBagInterface $params)
     {
         parent::__construct($registry, Phone::class);
+
+        $this->params = $params;
     }
 
     public function add(Phone $entity, bool $flush = false): void
@@ -37,6 +42,15 @@ class PhoneRepository extends ServiceEntityRepository
         if ($flush) {
             $this->getEntityManager()->flush();
         }
+    }
+
+    public function findAllInPage(int $page = 1)
+    {
+        $qb = $this->createQueryBuilder('p')
+                ->setFirstResult(($page - 1) * $this->params->get('phones_per_page'))
+                ->setMaxResults($this->params->get('phones_per_page'));
+        
+        return $qb->getQuery()->getResult();
     }
 
 //    /**
