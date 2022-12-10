@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Customer;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -44,11 +45,11 @@ class UserRepository extends ServiceEntityRepository
         }
     }
 
-    public function findAllInPage(int $customerId, int $page = 1)
+    public function findAllInPage(Customer $customer, int $page = 1)
     {
         $qb = $this->createQueryBuilder('u')
                 ->where('u.customer = :id')
-                ->setParameter('id', $customerId)
+                ->setParameter('id', $customer->getId())
                 ->setFirstResult(($page - 1) * $this->params->get('users_per_page'))
                 ->setMaxResults($this->params->get('users_per_page'));
         

@@ -2,6 +2,7 @@
 
 namespace App\Service\Phone;
 
+use App\Entity\User;
 use App\Repository\PhoneRepository;
 use App\Repository\UserRepository;
 use App\Service\ServiceHelper;
@@ -15,7 +16,6 @@ class GetPhonesService extends ServiceHelper
 {
 
     // ERRORS
-    protected const ERR_INVALID_PAGE_NUMBER = "Le numéro de page n'est pas valide.";
     protected const ERR_NO_DATA = "Aucune donnée n'est disponible pour le moment.";
 
     // UTILITIES
@@ -37,14 +37,15 @@ class GetPhonesService extends ServiceHelper
     // ============================================================================================
     // ENTRYPOINT
     // ============================================================================================
-    public function getAllPhones(int $page = 1, ?string $token): self
+    public function getAllPhones(int $page = 1, ?User $authenticatedUser): self
     {
         $this->initHelper();
 
         $this->functArgs->set('page', $page);
 
         // check if user is authenticated
-        if (null === $this->getUserFromToken($token)) {
+        if (false === $this->checkUser($authenticatedUser)) {
+            $this->errMessages->add(self::ERR_AUTHENTICATION);
             $this->httpCode = Response::HTTP_UNAUTHORIZED;
             return $this;
         }
@@ -90,24 +91,6 @@ class GetPhonesService extends ServiceHelper
 
         // save result
         $this->functResult->set('datas', $phones);
-
-        return true;
-    }
-
-    // ============================================================================================
-    // CHECKING JOBS
-    // ============================================================================================
-    /**
-     * Returns true if the page number is an integer greater than 1, otherwise returns false.
-     */
-    protected function checkPageNumber(): bool
-    {
-        if (false === filter_var($this->functArgs->get('page'), FILTER_VALIDATE_INT, 
-            ['options' => ['min_range' => 1]])
-        ) {
-            $this->errMessages->add(self::ERR_INVALID_PAGE_NUMBER);
-            return false;
-        }
 
         return true;
     }

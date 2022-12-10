@@ -13,6 +13,12 @@ class GetUserDetailsServiceTest extends KernelTestCase
     /** @var \Doctrine\ORM\EntityManager */
     private $entityManager;
 
+    // utilities
+    private Customer $customer;
+    private Customer $customer2;
+    private User $authenticatedUser;
+    private User $userToRead;
+
     private GetUserDetailsService $service;
 
     protected function setUp(): void
@@ -25,20 +31,20 @@ class GetUserDetailsServiceTest extends KernelTestCase
             ->getManager();
 
         $this->service = $container->get(GetUserDetailsService::class);
+
+        // init customers and users
+        $customers = $this->entityManager->getRepository(Customer::class)->findAll();
+        $this->customer  = $customers[0];
+        $this->customer2 = $customers[1];
+        $users = $this->customer->getUsers();
+        $this->authenticatedUser = $users[0];
+        $this->userToRead = $users[1];
     }
 
     public function testGetUserDetailsOk()
     {
-        // inits before run
-        /** @var Customer $customer */
-        $customer = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var User $user */
-        $user = $customer->getUsers()[0];
-        /** @var User $userToRead */
-        $userToRead = $customer->getUsers()[1];
-
         // run service
-        $this->service->getUser($customer, $userToRead, $user->getToken());
+        $this->service->getUser($this->customer, $this->userToRead, $this->authenticatedUser);
 
         // check status
         $this->assertTrue($this->service->getStatus());
@@ -49,9 +55,9 @@ class GetUserDetailsServiceTest extends KernelTestCase
         // read result
         /** @var User $userResult */
         $userResult = $this->service->getUnserializedDatas();
-        $this->assertEquals($userToRead->getId(), $userResult->getId());
-        $this->assertEquals($userToRead->getUsername(), $userResult->getUsername());
-        $this->assertEquals($userToRead->getEmail(), $userResult->getEmail());
+        $this->assertEquals($this->userToRead->getId(), $userResult->getId());
+        $this->assertEquals($this->userToRead->getUsername(), $userResult->getUsername());
+        $this->assertEquals($this->userToRead->getEmail(), $userResult->getEmail());
 
         // http code
         $this->assertEquals(Response::HTTP_OK, $this->service->getHttpCode());
@@ -59,14 +65,8 @@ class GetUserDetailsServiceTest extends KernelTestCase
 
     public function testUserNotFound()
     {
-        // inits before run
-        /** @var Customer $customer */
-        $customer = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var User $user */
-        $user = $customer->getUsers()[0];
-
         // run service
-        $this->service->getUser($customer, null, $user->getToken());
+        $this->service->getUser($this->customer, null, $this->authenticatedUser);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -86,14 +86,8 @@ class GetUserDetailsServiceTest extends KernelTestCase
 
     public function testCustomerNotFound()
     {
-        // inits before run
-        /** @var Customer $customer */
-        $customer = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var User $user */
-        $user = $this->entityManager->getRepository(User::class)->findAll()[0];
-
         // run service
-        $this->service->getUser(null, $customer->getUsers()[1], $user->getToken());
+        $this->service->getUser(null, $this->userToRead, $this->authenticatedUser);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -113,19 +107,8 @@ class GetUserDetailsServiceTest extends KernelTestCase
 
     public function testUserIsOwnedByWrongCustomer()
     {
-        // inits before run
-        /** @var Customer $customer */
-        $customer1 = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var User $user */
-        $user = $customer1->getUsers()[0];
-        /** @var Customer $customer */
-        $customer2 = $this->entityManager->getRepository(Customer::class)->findAll()[1];
-
-        /** @var User $userInCustomer2 */
-        $userInCustomer2 = $customer2->getUsers()[0];
-
         // run service
-        $this->service->getUser($customer1, $userInCustomer2, $user->getToken());
+        $this->service->getUser($this->customer, $this->customer2->getUsers()[0], $this->authenticatedUser);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -143,5 +126,5 @@ class GetUserDetailsServiceTest extends KernelTestCase
         $this->assertEquals(Response::HTTP_FORBIDDEN, $this->service->getHttpCode());
     }
 
-    // cases where the token is invalid, expired, or missing are already tested in "GetPhonesServiceTest"
+// cases where the user is not authenticated is already tested in "GetPhonesServiceTest"
 }

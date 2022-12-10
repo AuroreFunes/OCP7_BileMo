@@ -3,6 +3,7 @@
 namespace App\Test;
 
 use App\Entity\Phone;
+use App\Entity\User;
 use App\Service\Phone\GetPhonesService;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -13,6 +14,7 @@ class GetPhonesServiceTest extends KernelTestCase
     /** @var \Doctrine\ORM\EntityManager */
     private $entityManager;
     private ParameterBagInterface $params;
+    private User $user;
 
     private GetPhonesService $service;
 
@@ -26,8 +28,9 @@ class GetPhonesServiceTest extends KernelTestCase
             ->getManager();
 
         $this->params = $container->get(ParameterBagInterface::class);
-
         $this->service = $container->get(GetPhonesService::class);
+
+        $this->user = $this->entityManager->getRepository(User::class)->findAll()[0];
     }
 
     public function testGetPhonesOk()
@@ -36,7 +39,7 @@ class GetPhonesServiceTest extends KernelTestCase
         $phonesNbInMyPage = count($this->entityManager->getRepository(Phone::class)->findAllInPage(1));
 
         // run service
-        $this->service->getAllPhones(1, 'token1');
+        $this->service->getAllPhones(1, $this->user);
 
         // check status
         $this->assertTrue($this->service->getStatus());
@@ -58,7 +61,7 @@ class GetPhonesServiceTest extends KernelTestCase
         $maxPage = $phonesNbInMyPage / $this->params->get('phones_per_page');
 
         // run service
-        $this->service->getAllPhones($maxPage + 1, 'token1');
+        $this->service->getAllPhones($maxPage + 1, $this->user);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -79,7 +82,7 @@ class GetPhonesServiceTest extends KernelTestCase
     public function testWithInvalidPageNumber()
     {
         // run service
-        $this->service->getAllPhones(-1, 'token1');
+        $this->service->getAllPhones(-1, $this->user);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -97,49 +100,7 @@ class GetPhonesServiceTest extends KernelTestCase
         $this->assertEquals(Response::HTTP_BAD_REQUEST , $this->service->getHttpCode());
     }
 
-    public function testWithExpiredToken()
-    {
-        // run service
-        $this->service->getAllPhones(1, 'expiredToken!');
-
-        // check status
-        $this->assertFalse($this->service->getStatus());
-
-        // count result
-        $this->assertEmpty($this->service->getUnserializedDatas());
-
-        // count errors
-        $this->assertCount(1, $this->service->getUnserializedErrors());
-
-        // read error
-        $this->assertEquals("Le jeton a expiré.", $this->service->getUnserializedErrors()->get(0));
-
-        // http code
-        $this->assertEquals(Response::HTTP_UNAUTHORIZED , $this->service->getHttpCode());
-    }
-
-    public function testWithWrongToken()
-    {
-        // run service
-        $this->service->getAllPhones(1, 'wrongtoken!');
-
-        // check status
-        $this->assertFalse($this->service->getStatus());
-
-        // count result
-        $this->assertEmpty($this->service->getUnserializedDatas());
-
-        // count errors
-        $this->assertCount(1, $this->service->getUnserializedErrors());
-
-        // read error
-        $this->assertEquals("Le jeton n'est pas valide.", $this->service->getUnserializedErrors()->get(0));
-
-        // http code
-        $this->assertEquals(Response::HTTP_UNAUTHORIZED , $this->service->getHttpCode());
-    }
-
-    public function testWithoutToken()
+    public function testWithUnauthenticatedUser()
     {
         // run service
         $this->service->getAllPhones(1, null);
@@ -154,7 +115,7 @@ class GetPhonesServiceTest extends KernelTestCase
         $this->assertCount(1, $this->service->getUnserializedErrors());
 
         // read error
-        $this->assertEquals("Le jeton doit être fourni.", $this->service->getUnserializedErrors()->get(0));
+        $this->assertEquals("Seul un utilisateur authentifié peut accéder à l'API.", $this->service->getUnserializedErrors()->get(0));
 
         // http code
         $this->assertEquals(Response::HTTP_UNAUTHORIZED , $this->service->getHttpCode());

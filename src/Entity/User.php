@@ -6,6 +6,7 @@ use App\Repository\UserRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Hateoas\Configuration\Annotation as Hateoas;
 use JMS\Serializer\Annotation\Groups;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
@@ -15,7 +16,7 @@ use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
  * @Hateoas\Relation(
  *      "self",
  *      href = @Hateoas\Route(
- *          "app_users_details",
+ *          "api_users_details",
  *          parameters = { 
  *              "customer" = "expr(object.getCustomer().getId())",
  *              "user" = "expr(object.getId())" 
@@ -27,50 +28,59 @@ use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
  * @Hateoas\Relation(
  *      "update",
  *      href = @Hateoas\Route(
- *          "app_users_update",
+ *          "api_users_update",
  *          parameters = { 
  *              "customer" = "expr(object.getCustomer().getId())",
  *              "user" = "expr(object.getId())" 
  *          },
  *          absolute = false
  *      ),
- *      exclusion = @Hateoas\Exclusion(groups={"getUsers", "getUserDetails"})
+ *      exclusion = @Hateoas\Exclusion(
+ *          groups={"getUsers", "getUserDetails"},
+ *          excludeIf = "expr(not is_granted('ROLE_ADMIN'))"
+ *      )
  * )
  * @Hateoas\Relation(
  *      "delete",
  *      href = @Hateoas\Route(
- *          "app_users_delete",
+ *          "api_users_delete",
  *          parameters = { 
  *              "customer" = "expr(object.getCustomer().getId())",
  *              "user" = "expr(object.getId())" 
  *          },
  *          absolute = false
  *      ),
- *      exclusion = @Hateoas\Exclusion(groups={"getUsers", "getUserDetails"})
+ *      exclusion = @Hateoas\Exclusion(
+ *          groups={"getUsers", "getUserDetails"}, 
+ *          excludeIf = "expr(not is_granted('ROLE_ADMIN'))"
+ *      )
  * )
  * @Hateoas\Relation(
  *      "create",
  *      href = @Hateoas\Route(
- *          "app_users_create",
+ *          "api_users_create",
  *          parameters = { 
  *              "customer" = "expr(object.getCustomer().getId())"
  *          },
  *          absolute = false
  *      ),
- *      exclusion = @Hateoas\Exclusion(groups="getUsers")
+ *      exclusion = @Hateoas\Exclusion(
+ *          groups="getUsers", 
+ *          excludeIf = "expr(not is_granted('ROLE_ADMIN'))"
+ *      )
  * )
  * 
  * @ORM\Entity(repositoryClass=UserRepository::class)
  * @UniqueEntity(
- *  fields={"username"},
- *  message="Ce nom d'utilisateur existe déjà."
+ *  fields={"fullName"},
+ *  message="Ce nom d'utilisateur (fullName) existe déjà."
  * )
  * @UniqueEntity(
  *  fields={"email"},
  *  message="Cet e-mail est déjà utilisé."
  * )
  */
-class User implements UserInterface
+class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     /**
      * @ORM\Id
@@ -88,17 +98,17 @@ class User implements UserInterface
     private $customer;
 
     /**
-     * @ORM\Column(type="string", length=255)
-     * @Assert\NotBlank(message="Le nom d'utilisateur doit être renseigné.")
+     * @ORM\Column(type="string", length=255, name="full_name")
+     * @Assert\NotBlank(message="Le nom d'utilisateur (fullName) doit être renseigné.")
      * @Assert\Length(
      *      min=2,
      *      max=255,
-     *      minMessage="Le nom de l'utilisateur doit contenir au moins deux caractères.",
-     *      maxMessage="Le nom de l'utilisateur ne peut pas dépasser 255 caractères."
+     *      minMessage="Le nom de l'utilisateur (fullName) doit contenir au moins deux caractères.",
+     *      maxMessage="Le nom de l'utilisateur (fullName) ne peut pas dépasser 255 caractères."
      * )
      * @Groups({"getUsers", "getUserDetails"})
      */
-    private $username;
+    private $fullName;
 
     /**
      * @ORM\Column(type="string", length=255)
@@ -113,6 +123,27 @@ class User implements UserInterface
      * @Groups({"getUserDetails"})
      */
     private $email;
+
+    /**
+     * @var string The hashed password
+     * @ORM\Column(type="string", length=255)
+     * @Assert\NotBlank(
+     *      message = "Vous devez choisir un mot de passe.",
+     *      groups={"PasswordForm"}
+     * )
+     * @Assert\Length(
+     *      min="8",
+     *      max="254",
+     *      minMessage="Le mot de passe doit faire entre 8 et 254 caractères.",
+     *      maxMessage="Le mot de passe doit faire entre 8 et 254 caractères."
+     * )
+     * @Assert\Regex(
+     *     pattern = "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])^",
+     *     match = true,
+     *     message = "Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre."
+     * )
+     */
+    private $password;
 
     /**
      * @ORM\Column(type="json")
@@ -132,16 +163,6 @@ class User implements UserInterface
      */
     private $updatedAt;
 
-    /**
-     * @ORM\Column(type="string", length=255, nullable=true)
-     */
-    private $token;
-
-    /**
-     * @ORM\Column(type="datetime", nullable=true)
-     */
-    private $token_validity;
-
 
     public function getId(): ?int
     {
@@ -160,14 +181,14 @@ class User implements UserInterface
         return $this;
     }
 
-    public function getUsername(): ?string
+    public function getFullname(): ?string
     {
-        return $this->username;
+        return $this->fullName;
     }
 
-    public function setUsername(string $username): self
+    public function setFullname(string $fullname): self
     {
-        $this->username = $username;
+        $this->fullName = $fullname;
 
         return $this;
     }
@@ -180,6 +201,21 @@ class User implements UserInterface
     public function setEmail(string $email): self
     {
         $this->email = $email;
+
+        return $this;
+    }
+
+    /**
+     * @see PasswordAuthenticatedUserInterface
+     */
+    public function getPassword(): string
+    {
+        return $this->password;
+    }
+
+    public function setPassword(string $password): self
+    {
+        $this->password = $password;
 
         return $this;
     }
@@ -227,32 +263,19 @@ class User implements UserInterface
         return $this;
     }
 
-    public function getToken(): ?string
-    {
-        return $this->token;
-    }
-
-    public function setToken(?string $token): self
-    {
-        $this->token = $token;
-
-        return $this;
-    }
-
-    public function getTokenValidity(): ?\DateTimeInterface
-    {
-        return $this->token_validity;
-    }
-
-    public function setTokenValidity(?\DateTimeInterface $tokenValidity): self
-    {
-        $this->token_validity = $tokenValidity;
-        return $this;
-    }
-
     // ============================================================================================
     // USER INTERFACE
     // ============================================================================================
+    public function getUsername(): ?string
+    {
+        return (string) $this->getUserIdentifier();
+    }
+
+    /**
+     * A visual identifier that represents this user.
+     *
+     * @see UserInterface
+     */
     public function getUserIdentifier(): string
     {
         return (string) $this->email;
@@ -266,11 +289,6 @@ class User implements UserInterface
     public function getSalt() : ?string
     {
         return null;
-    }
-
-    public function getPassword(): ?string
-    {
-        return $this->getToken();
     }
 
 }

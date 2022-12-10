@@ -35,7 +35,7 @@ class DeleteUserService extends ServiceHelper
     // ============================================================================================
     // ENTRYPOINT
     // ============================================================================================
-    public function deleteUser(?Customer $customer, ?User $user, ?string $token): self
+    public function deleteUser(?Customer $customer, ?User $user, ?User $authenticatedUser): self
     {
         $this->initHelper();
 
@@ -44,7 +44,7 @@ class DeleteUserService extends ServiceHelper
         $this->functArgs->set('user', $user);
 
         // user is authenticated AND is owned by the customer ?
-        if (null === $authenticatedUser = $this->checkAuthenticatedUser($customer, $token)) {
+        if (false === $this->checkAuthenticatedUser($customer, $authenticatedUser)) {
             return $this;
         }
 
@@ -67,7 +67,7 @@ class DeleteUserService extends ServiceHelper
         }
 
         // serialized datas
-        $this->serializeMessage(self::OK_DELETE_SUCCESS);
+        $this->serializeMessage(["info" => self::OK_DELETE_SUCCESS]);
 
         $this->httpCode = Response::HTTP_NO_CONTENT;
         $this->status = true;
@@ -83,6 +83,10 @@ class DeleteUserService extends ServiceHelper
      */
     protected function makeDelete(): bool
     {
+        // save cache name (user details)
+        $cacheTagUserDetails = self::CACHE_NAME['getUserDetails'] . "-" . $this->functArgs->get('customer')->getId()
+            . "-" . $this->functArgs->get('user')->getId();
+
         try {
             $this->manager->remove($this->functArgs->get('user'));
             $this->manager->flush();
@@ -91,10 +95,11 @@ class DeleteUserService extends ServiceHelper
             return false;
         }
 
-        // delete user list from cache pool
-        $this->cachePool->invalidateTags(
-            [self::CACHE_NAME['getUsers'] . "-" . $this->functArgs->get('customer')->getId()]
-        );
+        // save cache name (users list)
+        $cacheTagUsersList = self::CACHE_NAME['getUsers'] . "-" . $this->functArgs->get('customer')->getId();
+
+        // delete user details ans users list from cache pool
+        $this->cachePool->invalidateTags([$cacheTagUserDetails, $cacheTagUsersList]);
 
         return true;
     }

@@ -30,7 +30,7 @@ class GetUserDetailsService extends ServiceHelper
     // ============================================================================================
     // ENTRYPOINT
     // ============================================================================================
-    public function getUser(?Customer $customer, ?User $user, ?string $token): self
+    public function getUser(?Customer $customer, ?User $user, ?User $authenticatedUser): self
     {
         $this->initHelper();
 
@@ -39,12 +39,12 @@ class GetUserDetailsService extends ServiceHelper
         $this->functArgs->set('user', $user);
 
         // user is authenticated AND is owned by the customer ?
-        if (null === $this->checkAuthenticatedUser($customer, $token)) {
+        if (false === $this->checkAuthenticatedUser($customer, $authenticatedUser)) {
             return $this;
         }
 
-        // the user is valid ?
-        if (false === $this->checkUser()) {
+        if (false === $this->checkUser($user)) {
+            $this->errMessages->add(self::ERR_USER_NOT_FOUND);
             $this->httpCode = Response::HTTP_NOT_FOUND;
             return $this;
         }
@@ -81,26 +81,11 @@ class GetUserDetailsService extends ServiceHelper
             $idCache, 
             function (ItemInterface $item) use ($idCache) {
                 $item->tag($idCache);
+                // Symfony lazy loading : accessing the Customer name and not making an additional request to retrieve an object we already have
+                $tmp = $this->functArgs->get('user')->getCustomer()->getName();
                 return $this->functArgs->get('user');
             }
         ));
-    }
-
-    // ============================================================================================
-    // CHECKING JOBS
-    // ============================================================================================
-    /**
-     * Check if the user is valid.
-     * If yes returns true, otherwise returns false.
-     */
-    protected function checkUser(): bool
-    {
-        if (null === $this->functArgs->get('user')) {
-            $this->errMessages->add(self::ERR_USER_NOT_FOUND);
-            return false;
-        }
-
-        return true;
     }
 
 }

@@ -8,9 +8,17 @@ use App\Entity\Phone;
 use App\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class AppFixtures extends Fixture
 {
+    private UserPasswordHasherInterface $pwdHasher;
+
+    public function __construct(UserPasswordHasherInterface $pwdHasher)
+    {
+        $this->pwdHasher = $pwdHasher;
+    }
+
     public function load(ObjectManager $manager): void
     {
         // brands creation
@@ -53,71 +61,63 @@ class AppFixtures extends Fixture
         }
 
         // users creation
-        $tokenValidity = new \DateTime();
-        $tokenValidity->add(new \DateInterval('P1Y'));
-
         $user = new User();
         $user
-            ->setUsername('User 1')
+            ->setfullname('User 1')
             ->setCustomer($customerList[0])
             ->setCreatedAt(new \DateTime())
             ->setEmail('contact1@testmail.com')
-            ->setRoles(['ROLE_ADMIN'])
-            ->setToken('token1')
-            ->setTokenValidity($tokenValidity);
+            ->setPassword($this->pwdHasher->hashPassword($user, "Abcd1234"))
+            ->setRoles(['ROLE_ADMIN']);
         $manager->persist($user);
 
         $user = new User();
         $user
-            ->setUsername('User 2')
+            ->setFullname('User 2')
             ->setCustomer($customerList[0])
             ->setCreatedAt(new \DateTime())
             ->setEmail('contact2@testmail.com')
-            ->setRoles(['ROLE_USER'])
-            ->setToken('token2')
-            ->setTokenValidity($tokenValidity);
+            ->setPassword($this->pwdHasher->hashPassword($user, "Abcd1234"))
+            ->setRoles(['ROLE_USER']);
         $manager->persist($user);
 
         $user = new User();
         $user
-            ->setUsername('User 3')
+            ->setFullname('User 3')
             ->setCustomer($customerList[1])
             ->setCreatedAt(new \DateTime())
             ->setEmail('contact3@testmail.com')
-            ->setRoles(['ROLE_ADMIN'])
-            ->setToken('token3')
-            ->setTokenValidity($tokenValidity);
+            ->setPassword($this->pwdHasher->hashPassword($user, "Abcd1234"))
+            ->setRoles(['ROLE_ADMIN']);
         $manager->persist($user);
 
         $user = new User();
         $user
-            ->setUsername('User 4')
+            ->setFullname('User 4')
             ->setCustomer($customerList[1])
             ->setCreatedAt(new \DateTime())
             ->setEmail('contact4@testmail.com')
-            ->setRoles(['ROLE_USER'])
-            ->setToken('token4')
-            ->setTokenValidity($tokenValidity);
+            ->setPassword($this->pwdHasher->hashPassword($user, "Abcd1234"))
+            ->setRoles(['ROLE_USER']);
         $manager->persist($user);
 
-        $expiredToken = new \DateTime('1900-01-01 00:00:00');
         $user = new User();
         $user
-            ->setUsername('User 5')
+            ->setFullname('User 5')
             ->setCustomer($customerList[0])
             ->setCreatedAt(new \DateTime())
             ->setEmail('contact5@testmail.com')
-            ->setRoles(['ROLE_ADMIN'])
-            ->setToken('expiredToken!')
-            ->setTokenValidity($expiredToken);
+            ->setPassword($this->pwdHasher->hashPassword($user, "Abcd1234"))
+            ->setRoles(['ROLE_ADMIN']);
         $manager->persist($user);
 
         $user = new User();
         $user
-            ->setUsername('User 6')
+            ->setFullname('User 6')
             ->setCustomer($customerList[0])
             ->setCreatedAt(new \DateTime())
             ->setEmail('contac6@testmail.com')
+            ->setPassword($this->pwdHasher->hashPassword($user, "Abcd1234"))
             ->setRoles(['ROLE_USER']);
         $manager->persist($user);
         

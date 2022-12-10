@@ -18,6 +18,7 @@ class CreateUserServiceTest extends KernelTestCase
     // UTILITIES
     private string $uniqid;
     private Customer $customer;
+    private Customer $customer2;
     private User     $userAdmin;
     private User     $user;
 
@@ -35,7 +36,9 @@ class CreateUserServiceTest extends KernelTestCase
         $this->uniqid = uniqid();
 
         // inits
-        $this->customer = $this->entityManager->getRepository(Customer::class)->findAll()[0];
+        $customers = $this->entityManager->getRepository(Customer::class)->findAll();
+        $this->customer2 = $customers[1];
+        $this->customer  = $customers[0];
         // user admin
         foreach ($this->customer->getUsers() as $userTmp) {
             if (in_array('ROLE_ADMIN', $userTmp->getRoles())) {
@@ -59,7 +62,7 @@ class CreateUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->createUser($this->customer, $this->giveValidUser(), $this->userAdmin->getToken());
+        $this->service->createUser($this->customer, $this->giveValidUser(), $this->userAdmin);
 
         // check status
         $this->assertTrue($this->service->getStatus());
@@ -68,9 +71,11 @@ class CreateUserServiceTest extends KernelTestCase
         $this->assertEmpty($this->service->getUnserializedErrors());
 
         // check result
+        $this->assertCount($usersNb + 1, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
+        
         /** @var User $newUser */
         $newUser = $this->service->getUnserializedDatas();
-        $this->assertEquals("New user " . $this->uniqid, $newUser->getUsername());
+        $this->assertEquals("New user " . $this->uniqid, $newUser->getFullname());
         $this->assertEquals($this->uniqid . "@mail.test", $newUser->getEmail());
 
         // http code
@@ -83,20 +88,20 @@ class CreateUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->createUser($this->customer, $this->giveUsernameAndMailEmpty(), $this->userAdmin->getToken());
+        $this->service->createUser($this->customer, $this->giveUsernameAndMailEmpty(), $this->userAdmin);
 
         // check status
         $this->assertFalse($this->service->getStatus());
 
         // check result
         $this->assertEmpty($this->service->getUnserializedDatas());
-        $this->assertCount($usersNb, $this->customer->getUsers());
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(2, $this->service->getUnserializedErrors());
 
         // read errors
-        $this->assertEquals("Le nom d'utilisateur doit être renseigné.", $this->service->getUnserializedErrors()->get(0));
+        $this->assertEquals("Le nom d'utilisateur (fullName) doit être renseigné.", $this->service->getUnserializedErrors()->get(0));
         $this->assertEquals("L'adresse e-mail doit être renseignée.", $this->service->getUnserializedErrors()->get(1));
 
         // http code
@@ -109,14 +114,14 @@ class CreateUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->createUser($this->customer, $this->giveInvalidMail(), $this->userAdmin->getToken());
+        $this->service->createUser($this->customer, $this->giveInvalidMail(), $this->userAdmin);
 
         // check status
         $this->assertFalse($this->service->getStatus());
 
         // check result
         $this->assertEmpty($this->service->getUnserializedDatas());
-        $this->assertCount($usersNb, $this->customer->getUsers());
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(1, $this->service->getUnserializedErrors());
@@ -134,14 +139,14 @@ class CreateUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->createUser($this->customer, $this->giveInvalidRole(), $this->userAdmin->getToken());
+        $this->service->createUser($this->customer, $this->giveInvalidRole(), $this->userAdmin);
 
         // check status
         $this->assertFalse($this->service->getStatus());
 
         // check result
         $this->assertEmpty($this->service->getUnserializedDatas());
-        $this->assertCount($usersNb, $this->customer->getUsers());
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(1, $this->service->getUnserializedErrors());
@@ -159,20 +164,20 @@ class CreateUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->createUser($this->customer, $this->giveUsedUsernameAndEmail(), $this->userAdmin->getToken());
+        $this->service->createUser($this->customer, $this->giveUsedUsernameAndEmail(), $this->userAdmin);
 
         // check status
         $this->assertFalse($this->service->getStatus());
 
         // check result
         $this->assertEmpty($this->service->getUnserializedDatas());
-        $this->assertCount($usersNb, $this->customer->getUsers());
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(2, $this->service->getUnserializedErrors());
 
         // read errors
-        $this->assertEquals("Ce nom d'utilisateur existe déjà.", $this->service->getUnserializedErrors()->get(0));
+        $this->assertEquals("Ce nom d'utilisateur (fullName) existe déjà.", $this->service->getUnserializedErrors()->get(0));
         $this->assertEquals("Cet e-mail est déjà utilisé.", $this->service->getUnserializedErrors()->get(1));
 
         // http code
@@ -185,14 +190,14 @@ class CreateUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->createUser($this->customer, null, $this->userAdmin->getToken());
+        $this->service->createUser($this->customer, null, $this->userAdmin);
 
         // check status
         $this->assertFalse($this->service->getStatus());
 
         // check result
         $this->assertEmpty($this->service->getUnserializedDatas());
-        $this->assertCount($usersNb, $this->customer->getUsers());
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(1, $this->service->getUnserializedErrors());
@@ -210,14 +215,14 @@ class CreateUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->createUser($this->customer, $this->giveValidUser(), $this->user->getToken());
+        $this->service->createUser($this->customer, $this->giveValidUser(), $this->user);
 
         // check status
         $this->assertFalse($this->service->getStatus());
 
         // check result
         $this->assertEmpty($this->service->getUnserializedDatas());
-        $this->assertCount($usersNb, $this->customer->getUsers());
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(1, $this->service->getUnserializedErrors());
@@ -233,18 +238,16 @@ class CreateUserServiceTest extends KernelTestCase
     {
         // init before run
         $usersNb = count($this->customer->getUsers());
-        /** @var Customer $customer2 */
-        $customer2 = $this->entityManager->getRepository(Customer::class)->findAll()[1];
 
         // run service
-        $this->service->createUser($customer2, $this->giveValidUser(), $this->user->getToken());
+        $this->service->createUser($this->customer2, $this->giveValidUser(), $this->userAdmin);
 
         // check status
         $this->assertFalse($this->service->getStatus());
 
         // check result
         $this->assertEmpty($this->service->getUnserializedDatas());
-        $this->assertCount($usersNb, $this->customer->getUsers());
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(1, $this->service->getUnserializedErrors());
@@ -256,19 +259,18 @@ class CreateUserServiceTest extends KernelTestCase
         $this->assertEquals(Response::HTTP_FORBIDDEN, $this->service->getHttpCode());
     }
 
-    // cases where the token is invalid, expired, or missing are already tested in "GetPhonesServiceTest"
-
     // ============================================================================================
     // DATAS FOR TESTS
     // ============================================================================================
     private function giveValidUser()
     {
         return '{
-            "username": "New user ' . $this->uniqid . '",
+            "fullName": "New user ' . $this->uniqid . '",
             "email": "' . $this->uniqid . '@mail.test",
             "roles": [
                "ROLE_USER"
-            ]
+            ],
+            "password": "Abcd1234"
         }';
     }
 
@@ -276,40 +278,44 @@ class CreateUserServiceTest extends KernelTestCase
         return '{
             "roles": [
                "ROLE_USER"
-            ]
+            ],
+            "password": "Abcd1234"
         }';
     }
 
     private function giveInvalidMail()
     {
         return '{
-            "username": "New user ' . $this->uniqid . '",
+            "fullName": "New user ' . $this->uniqid . '",
             "email": "' . $this->uniqid . '@mail",
             "roles": [
                "ROLE_USER"
-            ]
+            ],
+            "password": "Abcd1234"
         }';
     }
 
     private function giveInvalidRole()
     {
         return '{
-            "username": "New user ' . $this->uniqid . '",
+            "fullName": "New user ' . $this->uniqid . '",
             "email": "' . $this->uniqid . '@mail.test",
             "roles": [
                "ROLE_INVALID"
-            ]
+            ],
+            "password": "Abcd1234"
         }';
     }
 
     private function giveUsedUsernameAndEmail()
     {
         return '{
-            "username": "User 1",
+            "fullName": "User 1",
             "email": "contact1@testmail.com",
             "roles": [
                "ROLE_USER"
-            ]
+            ],
+            "password": "Abcd1234"
         }';
     }
 
