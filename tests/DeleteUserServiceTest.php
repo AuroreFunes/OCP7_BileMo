@@ -19,6 +19,7 @@ class DeleteUserServiceTest extends KernelTestCase
     private Customer $customer;
     private User     $userAdmin;
 
+
     protected function setUp(): void
     {
         $kernel = self::bootKernel();
@@ -42,13 +43,6 @@ class DeleteUserServiceTest extends KernelTestCase
             }
         }
 
-        // user without admin role
-        foreach ($this->customer->getUsers() as $userTmp) {
-            if (!in_array('ROLE_ADMIN', $userTmp->getRoles())) {
-                $this->user = $userTmp;
-                break;
-            }
-        }
     }
 
     public function testDeleteUserOk()
@@ -58,7 +52,7 @@ class DeleteUserServiceTest extends KernelTestCase
         $userToDelete = $this->customer->getUsers()[count($this->customer->getUsers()) - 1];
 
         // run service
-        $this->service->deleteUser($this->customer, $userToDelete, $this->userAdmin->getToken());
+        $this->service->deleteUser($this->customer, $userToDelete, $this->userAdmin);
 
         // check status
         $this->assertTrue($this->service->getStatus());
@@ -67,7 +61,7 @@ class DeleteUserServiceTest extends KernelTestCase
         $this->assertEmpty($this->service->getUnserializedErrors());
 
         // check result
-        $this->assertCount($usersNb - 1, $this->customer->getUsers());
+        $this->assertCount($usersNb - 1, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // http code
         $this->assertEquals(Response::HTTP_NO_CONTENT, $this->service->getHttpCode());
@@ -79,10 +73,13 @@ class DeleteUserServiceTest extends KernelTestCase
         $usersNb = count($this->customer->getUsers());
 
         // run service
-        $this->service->deleteUser($this->customer, null, $this->userAdmin->getToken());
+        $this->service->deleteUser($this->customer, null, $this->userAdmin);
 
         // check status
         $this->assertFalse($this->service->getStatus());
+
+        // check result
+        $this->assertCount($usersNb, $this->entityManager->getRepository(User::class)->findBy(['customer' => $this->customer]));
 
         // count errors
         $this->assertCount(1, $this->service->getUnserializedErrors());
@@ -94,6 +91,6 @@ class DeleteUserServiceTest extends KernelTestCase
         $this->assertEquals(Response::HTTP_NOT_FOUND, $this->service->getHttpCode());
     }
 
-    // cases where the token is invalid, expired, or missing are already tested in "GetPhonesServiceTest"
-    // cases where the user does not have the administrator role or does not belong to the right client are already checked in "CreateUserServiceTest"
+    // cases where the user does not have the administrator role or does not belong to the right customer are already checked in "CreateUserServiceTest"
+    // case where the user is not authenticated is already tested in "GetPhonesServiceTest"
 }

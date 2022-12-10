@@ -15,6 +15,12 @@ class GetUsersServiceTest extends KernelTestCase
     private $entityManager;
     private ParameterBagInterface $params;
 
+    // utilities
+    private Customer $customer;
+    private Customer $customer2;
+    private User $authenticatedUser;
+
+
     private GetUsersService $service;
 
     protected function setUp(): void
@@ -29,20 +35,21 @@ class GetUsersServiceTest extends KernelTestCase
         $this->params = $container->get(ParameterBagInterface::class);
 
         $this->service = $container->get(GetUsersService::class);
+
+        // init customers and users
+        $customers = $this->entityManager->getRepository(Customer::class)->findAll();
+        $this->customer  = $customers[0];
+        $this->customer2 = $customers[1];
+        $this->authenticatedUser = $this->customer->getUsers()[0];
     }
 
     public function testGetUsersOk()
     {
         // inits before run
-        /** @var Customer $customer */
-        $customer = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var User $user */
-        $user = $customer->getUsers()[0];
-
-        $usersNbInMyPage = count($this->entityManager->getRepository(User::class)->findAllInPage($customer->getId(), 1));
+        $usersNbInMyPage = count($this->entityManager->getRepository(User::class)->findAllInPage($this->customer, 1));
 
         // run service
-        $this->service->getUsers($customer, $user->getToken());
+        $this->service->getUsers($this->customer, $this->authenticatedUser);
 
         // check status
         $this->assertTrue($this->service->getStatus());
@@ -60,15 +67,10 @@ class GetUsersServiceTest extends KernelTestCase
     public function testWithNoDataInPage()
     {
         // inits before run
-        /** @var Customer $customer */
-        $customer = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var User $user */
-        $user = $customer->getUsers()[0];
-
-        $maxPage = count($customer->getUsers()) / $this->params->get('users_per_page');
+        $maxPage = round(count($this->customer->getUsers()) / $this->params->get('users_per_page'), 1);
 
         // run service
-        $this->service->getUsers($customer, $user->getToken(), $maxPage + 2);
+        $this->service->getUsers($this->customer, $this->authenticatedUser, $maxPage + 2);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -88,14 +90,8 @@ class GetUsersServiceTest extends KernelTestCase
 
     public function testWithInvalidPageNumber()
     {
-        // inits before run
-        /** @var Customer $customer */
-        $customer = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var User $user */
-        $user = $customer->getUsers()[0];
-
         // run service
-        $this->service->getUsers($customer, $user->getToken(), -1);
+        $this->service->getUsers($this->customer, $this->authenticatedUser, -1);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -116,16 +112,11 @@ class GetUsersServiceTest extends KernelTestCase
     public function testUserIsOwnedByWrongCustomer()
     {
         // inits before run
-        /** @var Customer $customer */
-        $customer1 = $this->entityManager->getRepository(Customer::class)->findAll()[0];
-        /** @var Customer $customer */
-        $customer2 = $this->entityManager->getRepository(Customer::class)->findAll()[1];
-
         /** @var User $userInCustomer2 */
-        $userInCustomer2 = $customer2->getUsers()[0];
+        $userInCustomer2 = $this->customer2->getUsers()[0];
 
         // run service
-        $this->service->getUsers($customer1, $userInCustomer2->getToken());
+        $this->service->getUsers($this->customer, $userInCustomer2);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -143,5 +134,5 @@ class GetUsersServiceTest extends KernelTestCase
         $this->assertEquals(Response::HTTP_FORBIDDEN, $this->service->getHttpCode());
     }
 
-    // cases where the token is invalid, expired, or missing are already tested in "GetPhonesServiceTest"
+// cases where the user is not authenticated is already tested in "GetPhonesServiceTest"
 }

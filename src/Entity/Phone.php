@@ -11,7 +11,7 @@ use JMS\Serializer\Annotation\Groups;
  * @Hateoas\Relation(
  *      "self",
  *      href = @Hateoas\Route(
- *          "app_phones_details",
+ *          "api_phones_details",
  *          parameters = { "id" = "expr(object.getId())" },
  *          absolute = false
  *      ),

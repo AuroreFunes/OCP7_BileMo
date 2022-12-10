@@ -3,6 +3,7 @@
 namespace App\Service\Phone;
 
 use App\Entity\Phone;
+use App\Entity\User;
 use App\Repository\UserRepository;
 use App\Service\ServiceHelper;
 use Doctrine\Persistence\ManagerRegistry;
@@ -30,7 +31,7 @@ class GetPhoneDetailsService extends ServiceHelper
     // ============================================================================================
     // ENTRYPOINT
     // ============================================================================================
-    public function getPhone(?Phone $phone, ?string $token): self
+    public function getPhone(?Phone $phone, ?User $authenticatedUser): self
     {
         $this->initHelper();
 
@@ -38,7 +39,7 @@ class GetPhoneDetailsService extends ServiceHelper
         $this->functArgs->set('phone', $phone);
 
         // check if user is authenticated
-        if (null === $this->getUserFromToken($token)) {
+        if (false === $this->checkUser($authenticatedUser)) {
             $this->httpCode = Response::HTTP_UNAUTHORIZED;
             return $this;
         }
@@ -74,6 +75,8 @@ class GetPhoneDetailsService extends ServiceHelper
             $idCache, 
             function (ItemInterface $item) use ($idCache) {
                 $item->tag($idCache);
+                // Symfony lazy loading : accessing the phone brand and not making an additional request to retrieve an object we already have
+                $tmp = $this->functArgs->get('phone')->getBrand()->getName();
                 return $this->functArgs->get('phone');
             }
         ));

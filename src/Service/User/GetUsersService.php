@@ -3,6 +3,7 @@
 namespace App\Service\User;
 
 use App\Entity\Customer;
+use App\Entity\User;
 use App\Repository\UserRepository;
 use App\Service\ServiceHelper;
 use Doctrine\Persistence\ManagerRegistry;
@@ -16,7 +17,6 @@ class GetUsersService extends ServiceHelper
 {
 
     // ERRORS
-    protected const ERR_INVALID_PAGE_NUMBER = "Le numéro de page n'est pas valide.";
     protected const ERR_NO_DATA = "Il n'y a pas d'utilisateur dans la page choisie.";
 
 
@@ -32,7 +32,7 @@ class GetUsersService extends ServiceHelper
     // ============================================================================================
     // ENTRYPOINT
     // ============================================================================================
-    public function getUsers(?Customer $customer, ?string $token, int $page = 1): self
+    public function getUsers(?Customer $customer, ?User $authenticatedUser, int $page = 1): self
     {
         $this->initHelper();
 
@@ -41,7 +41,7 @@ class GetUsersService extends ServiceHelper
         $this->functArgs->set('page', $page);
 
         // user is authenticated AND is owned by the customer ?
-        if (null === $this->checkAuthenticatedUser($customer, $token)) {
+        if (false === $this->checkAuthenticatedUser($customer, $authenticatedUser)) {
             return $this;
         }
 
@@ -81,7 +81,7 @@ class GetUsersService extends ServiceHelper
             function (ItemInterface $item) {
                 $item->tag(self::CACHE_NAME['getUsers'] . "-" . $this->functArgs->get('customer')->getId());
                 return $this->userRepository->findAllInPage(
-                    $this->functArgs->get('customer')->getId(),
+                    $this->functArgs->get('customer'),
                     $this->functArgs->get('page') 
                 );
             }
@@ -94,24 +94,6 @@ class GetUsersService extends ServiceHelper
 
         // save result
         $this->functResult->set('datas', $users);
-
-        return true;
-    }
-
-    // ============================================================================================
-    // CHECKING JOBS
-    // ============================================================================================
-    /**
-     * Returns true if the page number is an integer greater than 1, otherwise returns false.
-     */
-    protected function checkPageNumber(): bool
-    {
-        if (false === filter_var($this->functArgs->get('page'), FILTER_VALIDATE_INT, 
-            ['options' => ['min_range' => 1]])
-        ) {
-            $this->errMessages->add(self::ERR_INVALID_PAGE_NUMBER);
-            return false;
-        }
 
         return true;
     }

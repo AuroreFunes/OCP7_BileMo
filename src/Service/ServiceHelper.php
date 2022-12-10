@@ -42,9 +42,6 @@ abstract class ServiceHelper
 
     // ERRORS
     protected const ERR_DB_ACCESS        = "Une erreur interne s'est produite.";
-    protected const ERR_TOKEN_EMPTY      = "Le jeton doit être fourni.";
-    protected const ERR_INVALID_TOKEN    = "Le jeton n'est pas valide.";
-    protected const ERR_EXPIRED_TOKEN    = "Le jeton a expiré.";
     protected const ERR_INVALID_USER     = "L'utilisateur n'a pas été trouvé.";
     protected const ERR_AUTHENTICATION   = "Seul un utilisateur authentifié peut accéder à l'API.";
     protected const ERR_INVALID_CUSTOMER = "Le client n'a pas été trouvé.";
@@ -52,6 +49,7 @@ abstract class ServiceHelper
     protected const ERR_UNAUTHORIZED     = "Vous ne pouvez pas effectuer cette opération confidentielle.";
     protected const ERR_INVALID_ROLE     = "Ce rôle n'est pas pris en charge : ";
     protected const ERR_NO_DATA          = "Les données doivent être fournies.";
+    protected const ERR_INVALID_PAGE_NUMBER = "Le numéro de page n'est pas valide.";
 
 
     public function __construct(
@@ -66,6 +64,7 @@ abstract class ServiceHelper
         $this->userRepository   = $userRepository;
     }
 
+
     // ============================================================================================
     // HELPER
     // ============================================================================================
@@ -77,6 +76,7 @@ abstract class ServiceHelper
         $this->functResult  = new ArrayCollection();
         $this->errMessages  = new ArrayCollection();
     }
+
 
     // ============================================================================================
     // SERIALIZE
@@ -91,10 +91,11 @@ abstract class ServiceHelper
         ));
     }
 
-    protected function serializeMessage(string $message): void
+    protected function serializeMessage(array $messages): void
     {
-        $this->functResult->set('serializedDatas', json_encode($message));
+        $this->functResult->set('serializedDatas', json_encode($messages));
     }
+
 
     // ============================================================================================
     // CHECK USER
@@ -108,66 +109,42 @@ abstract class ServiceHelper
      *      - if the customer is not valid, 
      *      - or if the user is not owned by this customer
      */
-    protected function checkAuthenticatedUser(?Customer $customer, ?string $token): ?User
+    protected function checkAuthenticatedUser(?Customer $customer, ?User $authenticatedUser): bool
     {
         // first, check if the user is authenticated
-        if (null === $authenticatedUser = $this->getUserFromToken($token)) {
+        if (false === $this->checkUser($authenticatedUser)) {
+            $this->errMessages->add(self::ERR_AUTHENTICATION);
             $this->httpCode = Response::HTTP_UNAUTHORIZED;
-            return null;
+            return false;
         }
 
         // then check if the customer is valid
         if (false === $this->checkCustomer($customer)) {
             $this->httpCode = Response::HTTP_NOT_FOUND;
-            return null;
+            return false;
         }
 
         // finally, check if the authenticated user is owned by the customer
         if (false === $this->checkUserIsOwnedByCustomer($authenticatedUser, $customer)) {
             $this->httpCode = Response::HTTP_FORBIDDEN;
-            return null;
+            return false;
         }
 
-        return $authenticatedUser;
+        return true;
     }
 
     /**
-     * Search for a user from the token provided.
-     * Returns null if the user is not found or if the token has expired.
+     * Check the customer.
+     * Returns true if it exists, otherwise returns false.
+     * Note : we could add other verifications in the future.
      */
-    protected function getUserFromToken(?string $token): ?User
+    protected function checkUser(?User $user): bool
     {
-        if (empty($token)) {
-            $this->errMessages->add(self::ERR_TOKEN_EMPTY);
-            return null;
+        if (null === $user) {
+            return false;
         }
 
-        /** @var User $user */
-        if (null === $user = $this->userRepository->findOneBy(['token' => $token])) {
-            $this->errMessages->add(self::ERR_INVALID_TOKEN);
-            return null;
-        }
-        
-        if (new \DateTime() > $user->getTokenValidity()) {
-            $this->errMessages->add(self::ERR_EXPIRED_TOKEN);
-/*
-            // delete old user token
-            $user
-                ->setToken(null)
-                ->setTokenValidity(null);
-
-            try {
-                $this->manager->persist($user);
-                $this->manager->flush();
-            } catch (\Exception $e) {
-                // do not display this error
-                return null;
-            }
-*/
-            return null;
-        }
-
-        return $user;
+        return true;
     }
 
     /**
@@ -214,6 +191,26 @@ abstract class ServiceHelper
     {
         return in_array(self::ROLE_ADMIN, $user->getRoles());
     }
+
+
+    // ============================================================================================
+    // CHECK PARAMETERS
+    // ============================================================================================
+    /**
+     * Returns true if the page number is an integer greater than 1, otherwise returns false.
+     */
+    protected function checkPageNumber(): bool
+    {
+        if (false === filter_var($this->functArgs->get('page'), FILTER_VALIDATE_INT, 
+            ['options' => ['min_range' => 1]])
+        ) {
+            $this->errMessages->add(self::ERR_INVALID_PAGE_NUMBER);
+            return false;
+        }
+
+        return true;
+    }
+
 
     // ============================================================================================
     // OUT

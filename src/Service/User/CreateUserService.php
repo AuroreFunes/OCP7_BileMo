@@ -9,6 +9,7 @@ use App\Service\ServiceHelper;
 use Doctrine\Persistence\ManagerRegistry;
 use JMS\Serializer\SerializerInterface;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Serializer\SerializerInterface as SymfonySerializer;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
@@ -20,6 +21,7 @@ class CreateUserService extends ServiceHelper
     // UTILITIES
     protected ValidatorInterface $validator;
     protected SymfonySerializer  $symfonySerializer;
+    protected UserPasswordHasherInterface $pwdHasher;
 
 
     public function __construct(
@@ -28,18 +30,20 @@ class CreateUserService extends ServiceHelper
         TagAwareCacheInterface  $cachePool,
         UserRepository          $userRepository,
         ValidatorInterface      $validator,
-        SymfonySerializer       $symfonySerializer
+        SymfonySerializer       $symfonySerializer,
+        UserPasswordHasherInterface $pwdHasher
     ) {
         parent::__construct($serializer, $manager, $cachePool, $userRepository);
 
-        $this->validator = $validator;
+        $this->validator         = $validator;
         $this->symfonySerializer = $symfonySerializer;
+        $this->pwdHasher         = $pwdHasher;
     }
 
     // ============================================================================================
     // ENTRYPOINT
     // ============================================================================================
-    public function createUser(?Customer $customer, ?string $request, ?string $token): self
+    public function createUser(?Customer $customer, ?string $request, ?User $authenticatedUser): self
     {
         $this->initHelper();
 
@@ -48,7 +52,7 @@ class CreateUserService extends ServiceHelper
         $this->functArgs->set('request', $request);
 
         // user is authenticated AND is owned by the customer ?
-        if (null === $authenticatedUser = $this->checkAuthenticatedUser($customer, $token)) {
+        if (false === $this->checkAuthenticatedUser($customer, $authenticatedUser)) {
             return $this;
         }
 
@@ -88,6 +92,11 @@ class CreateUserService extends ServiceHelper
      */
     protected function saveUser(): bool
     {
+        // hash the password !
+        $this->functResult->get('user')->setPassword($this->pwdHasher->hashPassword(
+            $this->functResult->get('user'), $this->functResult->get('user')->getPassword()
+        ));
+
         // add customer
         $this->functResult->get('user')->setCustomer($this->functArgs->get('customer'));
         // set creation date
@@ -138,6 +147,9 @@ class CreateUserService extends ServiceHelper
         /** @var User $user */
         $user = $this->symfonySerializer->deserialize($this->functArgs->get('request'), User::class, 'json');
 
+        // is used to save 'ROLE_USER' if the role has not been provided
+        $user->setRoles($user->getRoles());
+
         // validate user
         $errors = $this->validator->validate($user);
 
@@ -151,11 +163,7 @@ class CreateUserService extends ServiceHelper
         }
 
         // check roles
-        if (empty($user->getRoles())) {
-            // add 'ROLE_USER' by default
-            $user->setRoles([self::USER_ROLES_AVALIABLE[0]]);
-        }
-        else {
+        if (!empty($user->getRoles())) {
             /** @var bool $userHasInvalidRole */
             $userHasInvalidRole = false;
             foreach($user->getRoles() as $role) {

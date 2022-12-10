@@ -9,6 +9,7 @@ use App\Service\ServiceHelper;
 use Doctrine\Persistence\ManagerRegistry;
 use JMS\Serializer\SerializerInterface;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface as SymfonySerializer;
 use Symfony\Contracts\Cache\ItemInterface;
@@ -21,6 +22,7 @@ class UpdateUserService extends ServiceHelper
     // UTILITIES
     protected ValidatorInterface $validator;
     protected SymfonySerializer  $symfonySerializer;
+    protected UserPasswordHasherInterface $pwdHasher;
 
     // ERRORS
     protected const ERR_CUSTOMER_NOT_FOUND = "Le client correspondant n'a pas été trouvé.";
@@ -32,6 +34,7 @@ class UpdateUserService extends ServiceHelper
 
     // TOOLS
     protected bool $clearCache;
+    protected bool $updatePwd;
 
 
     public function __construct(
@@ -40,18 +43,20 @@ class UpdateUserService extends ServiceHelper
         TagAwareCacheInterface  $cachePool,
         UserRepository          $userRepository,
         ValidatorInterface      $validator,
-        SymfonySerializer       $symfonySerializer
+        SymfonySerializer       $symfonySerializer,
+        UserPasswordHasherInterface $pwdHasher
     ) {
         parent::__construct($serializer, $manager, $cachePool, $userRepository);
 
-        $this->validator = $validator;
+        $this->validator         = $validator;
         $this->symfonySerializer = $symfonySerializer;
+        $this->pwdHasher         = $pwdHasher;
     }
 
     // ============================================================================================
     // ENTRYPOINT
     // ============================================================================================
-    public function updateUser(?Customer $customer, ?User $user, ?string $request, ?string $token): self
+    public function updateUser(?Customer $customer, ?User $user, ?string $request, ?User $authenticatedUser): self
     {
         $this->initHelper();
 
@@ -61,7 +66,7 @@ class UpdateUserService extends ServiceHelper
         $this->functArgs->set('request', $request);
 
         // user is authenticated AND is owned by the customer ?
-        if (null === $authenticatedUser = $this->checkAuthenticatedUser($customer, $token)) {
+        if (false === $this->checkAuthenticatedUser($customer, $authenticatedUser)) {
             return $this;
         }
 
@@ -90,7 +95,7 @@ class UpdateUserService extends ServiceHelper
         }
 
         // serialized datas
-        $this->serializeMessage(self::OK_UPDATE_SUCCESS);
+        $this->serializeMessage(['info' => self::OK_UPDATE_SUCCESS]);
 
         $this->status = true;
         return $this;
@@ -105,6 +110,13 @@ class UpdateUserService extends ServiceHelper
      */
     protected function saveUser(): bool
     {
+        // hash the password !
+        if ($this->updatePwd) {
+            $this->functResult->get('user')->setPassword($this->pwdHasher->hashPassword(
+                $this->functResult->get('user'), $this->functResult->get('user')->getPassword()
+            ));
+        }
+
         // add updated date
         $this->functResult->get('user')->setUpdatedAt(new \DateTime());
 
@@ -149,35 +161,14 @@ class UpdateUserService extends ServiceHelper
      */
     protected function checkNewUserDatas(): bool
     {
-        //** @var User $newUserDatas */
-        /*
-        $newUserDatas = $this->serializer->deserialize(
-            $this->functArgs->get('request'),
-            User::class,
-            'json'
-        );
-
-        $this->functResult->set('user', $this->functArgs->get('user'));
-
-        // update user (only email, username and roles)
-        if (!empty($newUserDatas->getUsername())) {
-            $this->functResult->get('user')->setUsername($newUserDatas->getUsername());
-            $this->clearCache = true;
-        }
-
-        if (!empty($newUserDatas->getEmail())) {
-            $this->functResult->get('user')->setEmail($newUserDatas->getEmail());
-        }
-
-        if (!empty($newUserDatas->getRoles())) {
-            $this->functResult->get('user')->setRoles($newUserDatas->getRoles());
-        }
-        */
-
         if (null === $this->functArgs->get('request')) {
             $this->errMessages->add(self::ERR_NO_DATA);
             return false;
         }
+
+        // temporarily save the hashed password
+        /** @var string $hashedPwd */
+        $hashedPwd = $this->functArgs->get('user')->getPassword();
 
         $this->functResult->set('user', $this->symfonySerializer->deserialize(
             $this->functArgs->get('request'), 
@@ -185,9 +176,15 @@ class UpdateUserService extends ServiceHelper
             'json', 
             [
                 AbstractNormalizer::OBJECT_TO_POPULATE => $this->functArgs->get('user'),
-                'attributes' => ['username', 'email', 'roles']
+                'attributes' => ['fullName', 'email', 'roles', 'password']
             ]
         ));
+
+        // check if the password has been changed
+        if ($hashedPwd !== $this->functResult->get('user')->getPassword()) {
+            $this->updatePwd = true;
+        }
+        unset($hashedPwd);
 
         // validate user
         $errors = $this->validator->validate($this->functResult->get('user'));
@@ -237,6 +234,7 @@ class UpdateUserService extends ServiceHelper
         parent::initHelper();
 
         $this->clearCache = false;
+        $this->updatePwd  = false;
     }
 
 }

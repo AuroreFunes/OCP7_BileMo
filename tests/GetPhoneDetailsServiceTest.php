@@ -3,6 +3,7 @@
 namespace App\Test;
 
 use App\Entity\Phone;
+use App\Entity\User;
 use App\Service\Phone\GetPhoneDetailsService;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\Response;
@@ -11,6 +12,7 @@ class GetPhoneDetailsServiceTest extends KernelTestCase
 {
     /** @var \Doctrine\ORM\EntityManager */
     private $entityManager;
+    private User $user;
 
     private GetPhoneDetailsService $service;
 
@@ -24,6 +26,8 @@ class GetPhoneDetailsServiceTest extends KernelTestCase
             ->getManager();
 
         $this->service = $container->get(GetPhoneDetailsService::class);
+
+        $this->user = $this->entityManager->getRepository(User::class)->findAll()[0];
     }
 
     public function testGetPhoneDetailsOk()
@@ -33,7 +37,7 @@ class GetPhoneDetailsServiceTest extends KernelTestCase
         $phone = $this->entityManager->getRepository(Phone::class)->findAll()[0];
 
         // run service
-        $this->service->getPhone($phone, 'token1');
+        $this->service->getPhone($phone, $this->user);
 
         // check status
         $this->assertTrue($this->service->getStatus());
@@ -56,7 +60,7 @@ class GetPhoneDetailsServiceTest extends KernelTestCase
     public function testGetPhoneNotFound()
     {
         // run service
-        $this->service->getPhone(null, 'token1');
+        $this->service->getPhone(null, $this->user);
 
         // check status
         $this->assertFalse($this->service->getStatus());
@@ -71,6 +75,6 @@ class GetPhoneDetailsServiceTest extends KernelTestCase
         $this->assertEquals(Response::HTTP_NOT_FOUND, $this->service->getHttpCode());
     }
 
-// cases where the token is invalid, expired, or missing are already tested in "GetPhonesServiceTest"
+// cases where the user is not authenticated is already tested in "GetPhonesServiceTest"
 
 }
